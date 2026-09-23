@@ -27,6 +27,8 @@ interest away, the prerequisites are as follows:
 * eww v>=0.5.0
 * mango v>=0.17.2
 * py3-gobject
+* Fonts: Iosevka Term and Quicksand
+* Icons: Papirus
 
 Your mangowm config must include an `xkb_rules_layout` option with atleast
 one value, for example:
