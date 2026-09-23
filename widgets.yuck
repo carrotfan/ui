@@ -1,0 +1,197 @@
+;; Widgets for eww
+
+(defvar appsmode false)
+(defvar dockopen true)
+(defvar switcheropen false)
+(defvar timehover false)
+
+(defpoll apps :interval "12h" :initial "[{}]"
+	`~/.config/eww/s/getapps`)
+(deflisten curlayout :initial "English (US)"
+	`mmsg watch keyboardlayout | jq -rc --unbuffered '.layout'`)
+(deflisten curtag :initial "0"
+	`mmsg watch all-tags | jq -rc --unbuffered '.[][].tags[] | select(.is_active==true) | .index'`)
+(deflisten dockstuff :initial "[{}]"
+	`~/.config/eww/s/getdock`)
+(defpoll layouts :interval "12h" :initial "[]"
+	`~/.config/eww/s/getlayouts`)
+
+(defwidget appsbutton []
+	(eventbox :onclick "~/.config/eww/s/toggleapps &"
+		  :cursor "pointer"
+		  :class "apps-button"
+		  (label :text "Apps")
+	)
+)
+
+(defwidget apps []
+	(scroll :hscroll true
+		:vscroll false
+		:hexpand true
+		(box :space-evenly false
+		     :halign "start"
+		     :valign "center"
+		     :class "apps"
+		     :spacing 16
+		     :width 2560
+		     (for app in apps
+		     	(box :halign "start"
+		     	     :class "app"
+		     	     (eventbox :onclick "~/.config/eww/s/toggleapps & gtk-launch ${app.app}"
+		     		       :cursor "pointer"
+		     		       :tooltip {app.comment}
+		     		       (box :space-evenly false
+		     		            (image :path {app.icon}
+		     		                   :image-width 16
+		     		                   :image-height 16)
+		     		            (label :text {app.name} :wrap false)
+		     		       )
+		     		)
+		     	)
+		     )
+		)
+	)
+)
+
+(defwidget tag []
+	(eventbox :onscroll "case '{}' in up) mmsg dispatch viewtoleft ;; down) mmsg dispatch viewtoright ;; esac"
+		  :onclick "mmsg dispatch toggleoverview,\"$(mmsg get all-tags | jq -r '.[][].tags[] | select(.is_active==true) | .index')\""
+		  :cursor "pointer"
+		  (box :space-evenly false
+		       :hexpand false
+		       :vexpand false
+		       (label :text "Workspace ")
+		       (stack :selected {curtag - 1}
+		       	      :transition "slideright"
+		       	      :same-size false
+		       	      "1" "2" "3" "4" "5"
+		       )
+		  )
+	)
+)
+
+(defwidget dock []
+	(revealer :reveal dockopen
+		  :transition "crossfade"
+		  :duration "120ms"
+		  (box :space-evenly false
+		       :halign "center"
+		       :valign "end"
+		       :class "dock"
+		       (for app in dockstuff
+		       	(box :orientation "v"
+		       	     :space-evenly false
+		       	     :hexpand false
+		       	     :vexpand false
+		       	     (eventbox :cursor "pointer"
+		       	     	       (button :onclick {app.running ?
+		       	     	                         "mmsg dispatch focusid client,${app.id}" :
+		       	     	                         "gtk-launch ${app.app_id}"}
+		       	     	               :onrightclick "gtk-launch ${app.app_id}"
+		       	     	       	       :tooltip {app.name}
+		       	     	       	       :class "dock-icon"
+		       	     	       	       (image :path {app.path}
+		       	     	       	              :image-width 48
+		       	     	       	              :image-height 48)
+		       	     	       )
+		       	     )
+		       	     (revealer :reveal {app.running}
+		       	               :transition "slideright"
+		       	               :duration "150ms"
+		       	               (box :width {app.focused ? 20 : 4}
+		       	                    :height 4
+		       	                    :halign "center"
+		       	                    :class "app-indicator ${app.focused ? 'app-focused' : ''}")
+		       	     )
+		       	)
+		       )
+		  )
+	)
+)
+
+(defwidget tray []
+	(box :space-evenly false
+		(systray)
+	)
+)
+
+(defwidget layout []
+	(eventbox :onclick {switcheropen ? "eww update switcheropen=false; sleep 0.15; eww close switcher"
+	                                 : "eww open switcher; eww update switcheropen=true"}
+		  :onscroll "mmsg dispatch switch_keyboard_layout"
+		  :cursor "pointer"
+		  (label :text {curlayout})
+	)
+)
+
+(defwidget switcher []
+	(revealer :reveal switcheropen
+	          :transition "crossfade"
+	          :duration "120ms"
+		  (box :space-evenly false
+		       :halign "center"
+		       :class "switcher"
+		       (for l in layouts
+		       	;(button :onclick "mmsg dispatch switch_keyboard_layout,${l.id}"
+		       	;        :width 25
+		       	;        (label :text {l.code})
+		       	;)
+		       	(box :halign "center"
+		       	     (eventbox :onclick "mmsg dispatch switch_keyboard_layout,${l.id}"
+		       	               :width 22
+		       	               :halign "center"
+		       	               :class "layout-btn"
+		       	               (label :text {l.code})
+		       	     )
+		       	)
+		       )
+		  )
+	)
+)
+
+(defwidget time []
+	(eventbox :onhover "eww update timehover=true"
+		  :onhoverlost "eww update timehover=false"
+		  :cursor "pointer"
+		  (box :orientation "v"
+		       :space-evenly false
+		       :valign "center"
+		       (label :text "${formattime(EWW_TIME, "%R")}")
+		       (revealer :transition "slidedown"
+			       	 :reveal timehover
+			       	 :duration "150ms"
+			       	 (label :text "${formattime(EWW_TIME, "%a, %d %b")}"
+			       		:class "date")
+		       )
+		  )
+	)
+)
+
+; Container widget for the parts of the panel.
+(defwidget c [align]
+	(box :orientation "h"
+	     :space-evenly false
+	     :halign align
+	     :valign "fill"
+	     (children)
+	)
+)
+
+; Separator widget that is 8 pixels wide.
+(defwidget s []
+	(box :width 8)
+)
+
+(defwidget panel []
+	(stack :selected {appsmode ? 1 : 0}
+	       :transition "slideright"
+	       :same-size false
+	       (box
+	       	(c :align "start" (appsbutton) (s) (tag))
+	       	(c :align "end" (tray) (s) (layout) (s) (time))
+	       )
+	       (apps)
+	)
+)
+
+; vi:ft=lisp

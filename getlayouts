@@ -1,0 +1,19 @@
+#!/bin/sh
+# Unironically terrible script; dump xkb keyboard layouts from
+# mangomwm config in JSON format (for layout switcher widget)
+
+while read -r line; do case "$line" in "xkb_rules_layout="*)
+	list="${line#xkb_rules_layout=}"
+	o=$IFS IFS=","
+	set -- $list
+	IFS=$o
+
+	s="[" i=1
+	for l; do
+		s="$s{\"code\":\"$l\",\"id\":$i}"
+		[ $i -lt $# ] && s="$s,"
+		i=$((i + 1))
+	done
+	s="$s]"
+	echo "$s"
+esac; done < ~/.config/mango/config.conf

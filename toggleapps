@@ -1,0 +1,13 @@
+#!/bin/sh
+
+toggle() {
+	case "$(eww get ${1}open)" in
+		"true")  eww update "${1}open=false"; sleep 0.15; eww close "$1" ;;
+		"false") eww open "$1"; eww update "${1}open=true" ;;
+	esac
+}
+
+case "$(eww get appsmode)" in
+	"true") toggle dock; eww update appsmode=false ;;
+	"false") eww update appsmode=true; toggle dock ;;
+esac

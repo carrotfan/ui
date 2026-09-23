@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# Massively stolen from Failed lol
+
+import json
+import os
+import subprocess
+# from iconfetch import fetch
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+import sys
+
+pinned = {
+	"firefox": "firefox",
+	"pcmanfm": "pcmanfm",
+	"foot":    "foot",
+}
+
+icon_override = {
+	# Papirus doesn't have an icon for 'pcmanfm', but chooses to append '-qt' to the name
+	# for some weird reason...
+	"pcmanfm": "pcmanfm-qt",
+	# There's also no native icon for imv.
+	"imv":     "image-viewer",
+}
+
+def fetch(icon_name):
+	# icon_theme = Gtk.IconTheme.get_default()
+	icon_theme = Gtk.IconTheme.new()
+	icon_theme.set_custom_theme("Papirus")
+	if icon_name in icon_override:
+		icon_name = icon_override[icon_name]
+	icon = icon_theme.lookup_icon(icon_name, 48, 0)
+	if icon:
+		return icon.get_filename()
+	else:
+		return
+
+def makejson(data):
+	apps = {}
+
+	for c in data.get("clients", []):
+		id = c.get("id")
+		app_id = c.get("appid", "")
+		if not id or not app_id:
+			continue
+
+		focused = c.get("is_focused", False)
+		entry = {"id": id, "focused": focused}
+		apps.setdefault(app_id.lower(), []).append(entry)
+
+	tasks = []
+
+	for key in pinned.keys():
+		value = apps.get(key, [])
+		if len(value) == 0:
+			tasks.append({
+				"path": fetch(key),
+				"name": key,
+				"app_id": pinned.get(key, key),
+				# "pid": None,
+				"id": 0,
+				"focused": False,
+				"running": False,
+				"instance_count": 0,
+			})
+		else:
+			focused = any(v["focused"] for v in value)
+			tasks.append({
+				"path": fetch(key),
+				"name": key,
+				"app_id": pinned.get(key, key),
+				# "pid": value[0]["pid"],
+				"id": value[0]["id"],
+				"focused": focused,
+				"running": True,
+				"instance_count": len(value),
+			})
+
+	for name, value in apps.items():
+		if name not in pinned:
+			focused = any(v["focused"] for v in value)
+			tasks.append({
+				"path": fetch(name),
+				"name": name,
+				"app_id": name,
+				# "pid": value[0]["pid"],
+				"id": value[0]["id"],
+				"focused": focused,
+				"running": True,
+				"instance_count": len(value),
+			})
+
+	return tasks
+
+def main():
+    proc = subprocess.Popen(
+        ["mmsg", "watch", "all-clients"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    for line in proc.stdout:
+        line = line.strip()
+        if not line:
+            continue
+
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        info = makejson(data)
+        print(json.dumps(info), flush=True)
+
+if __name__ == "__main__":
+    main()
